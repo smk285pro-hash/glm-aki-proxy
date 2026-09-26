@@ -251,14 +251,38 @@ func waitMinter(page playwright.Page, timeout time.Duration) error {
 }
 
 // writePool stores tokens as {"tokens": [...]} with owner-only perms.
+// It merges new tokens with existing tokens in path, deduplicating them.
 func writePool(path string, tokens []string) error {
-	raw, err := json.MarshalIndent(map[string]interface{}{"tokens": tokens}, "", "  ")
+	existingMap := make(map[string]bool)
+	var allTokens []string
+	if raw, err := os.ReadFile(path); err == nil {
+		var df struct {
+			Tokens []string `json:"tokens"`
+		}
+		if json.Unmarshal(raw, &df) == nil {
+			for _, t := range df.Tokens {
+				t = strings.TrimSpace(t)
+				if t != "" && !existingMap[t] {
+					existingMap[t] = true
+					allTokens = append(allTokens, t)
+				}
+			}
+		}
+	}
+	for _, t := range tokens {
+		t = strings.TrimSpace(t)
+		if t != "" && !existingMap[t] {
+			existingMap[t] = true
+			allTokens = append(allTokens, t)
+		}
+	}
+	raw, err := json.MarshalIndent(map[string]interface{}{"tokens": allTokens}, "", "  ")
 	if err != nil {
 		return err
 	}
 	if err := os.WriteFile(path, append(raw, '\n'), 0600); err != nil {
 		return err
 	}
-	log.Printf("saved %d tokens to %s", len(tokens), path)
+	log.Printf("saved %d total tokens to %s (added %d new)", len(allTokens), path, len(tokens))
 	return nil
 }

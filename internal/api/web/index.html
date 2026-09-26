@@ -42,6 +42,9 @@
   <h1>glm-aki-proxy</h1>
   <span id="conn" class="pill">…</span>
   <span id="status">đang tải…</span>
+  <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+    <button id="harvest" class="ghost" style="padding:4px 12px; font-size:13px;" title="Chạy trình duyệt ngầm thu hoạch 50 device token mới">⚡ Nạp thêm Token</button>
+  </div>
 </header>
 <main id="chat"></main>
 <div id="composer">
@@ -234,6 +237,34 @@
   input.addEventListener("keydown", function (e) {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
   });
+
+  var harvestBtn = $("harvest");
+  if (harvestBtn) {
+    harvestBtn.onclick = function () {
+      if (!confirm("Chạy trình duyệt ngầm thu hoạch 50 device token mới? (Mất khoảng 10-20 giây)")) return;
+      harvestBtn.disabled = true;
+      var oldText = harvestBtn.textContent;
+      harvestBtn.textContent = "⏳ Đang nạp token...";
+      fetch("/api/harvest", { method: "POST", headers: auth() })
+        .then(function (r) {
+          if (!r.ok) return r.json().then(function (j) { throw new Error((j.error && j.error.message) || j.error || ("HTTP " + r.status)); });
+          return r.json();
+        })
+        .then(function (data) {
+          harvestBtn.textContent = "✅ Đã nạp (" + (data.pool_tokens || 0) + " tokens)";
+          refreshStatus();
+          setTimeout(function () {
+            harvestBtn.disabled = false;
+            harvestBtn.textContent = oldText;
+          }, 3000);
+        })
+        .catch(function (err) {
+          alert("Lỗi nạp token: " + err.message);
+          harvestBtn.disabled = false;
+          harvestBtn.textContent = oldText;
+        });
+    };
+  }
 
   refreshStatus();
   loadModels();

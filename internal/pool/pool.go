@@ -191,6 +191,25 @@ func (p *Pool) Push(tokens ...string) (int, error) {
 	return p.pushFile(tokens)
 }
 
+// Reload re-reads tokens from disk for file backend.
+func (p *Pool) Reload() error {
+	if p.Backend() != "file" || p.path == "" {
+		return nil
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	raw, err := os.ReadFile(p.path)
+	if err != nil {
+		return err
+	}
+	var df diskFile
+	if err := json.Unmarshal(raw, &df); err != nil {
+		return err
+	}
+	p.tokens = append([]string(nil), df.Tokens...)
+	return nil
+}
+
 // ── Upstash REST implementation ──
 
 func (p *Pool) takeRest() (string, bool) {

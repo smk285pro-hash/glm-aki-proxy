@@ -2,6 +2,9 @@
 $Key = "__KEY__"
 $Origin = "__ORIGIN__"
 
+if ($Key -eq "__KEY__" -or -not $Key) { $Key = "aki-local-key" }
+if ($Origin -eq "__ORIGIN__" -or -not $Origin) { $Origin = "http://127.0.0.1:5084" }
+
 $configDir = "$HOME\.claude-glm"
 $settingsPath = "$configDir\settings.json"
 

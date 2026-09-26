@@ -4,12 +4,17 @@
 package api
 
 import (
+	"context"
 	"crypto/subtle"
 	_ "embed"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -23,10 +28,11 @@ import (
 
 // Server wires config, identity, token pool and conversation memory.
 type Server struct {
-	cfg    config.Config
-	sess   *session.Pool
-	tokens *pool.Pool
-	mux    *http.ServeMux
+	cfg       config.Config
+	sess      *session.Pool
+	tokens    *pool.Pool
+	mux       *http.ServeMux
+	harvestMu sync.Mutex
 
 	mu    sync.Mutex
 	chats map[string]*conversation
@@ -110,6 +116,11 @@ func New(cfg config.Config, sess *session.Pool, tokens *pool.Pool) *Server {
 	m.HandleFunc("/api/admin/stats", s.handleAdminStats)
 	m.HandleFunc("/api/admin/models", s.withAuth(s.handleAdminModels))
 	m.HandleFunc("/api/admin/session/clear", s.withAuth(s.handleSessionClear))
+
+	// In-app token harvest
+	m.HandleFunc("/api/harvest", s.withAuth(s.handleHarvest))
+	m.HandleFunc("/harvest", s.withAuth(s.handleHarvest))
+
 	s.mux = m
 	go s.reap()
 	return s
@@ -588,6 +599,79 @@ func (s *Server) handleInstallPS1(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(content))
+}
+
+// ── /api/harvest ──
+
+func (s *Server) handleHarvest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, errObj("method not allowed"))
+		return
+	}
+	if !s.harvestMu.TryLock() {
+		writeJSON(w, http.StatusConflict, map[string]interface{}{
+			"success": false,
+			"error":   "thu hoạch token đang chạy, vui lòng chờ...",
+		})
+		return
+	}
+	defer s.harvestMu.Unlock()
+
+	count := 50
+	if q := r.URL.Query().Get("count"); q != "" {
+		if n, err := strconv.Atoi(q); err == nil && n > 0 && n <= 500 {
+			count = n
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+	defer cancel()
+
+	// Locate collector binary or fallback to go run
+	var cmd *exec.Cmd
+	collectBin := ""
+	candidates := []string{"aki-collect.exe", "aki-collect", "./aki-collect.exe", "./aki-collect"}
+	if exePath, err := os.Executable(); err == nil {
+		dir := filepath.Dir(exePath)
+		candidates = append([]string{
+			filepath.Join(dir, "aki-collect.exe"),
+			filepath.Join(dir, "aki-collect"),
+		}, candidates...)
+	}
+
+	for _, c := range candidates {
+		if fi, err := os.Stat(c); err == nil && !fi.IsDir() {
+			collectBin = c
+			break
+		}
+	}
+
+	if collectBin != "" {
+		cmd = exec.CommandContext(ctx, collectBin, "--count", strconv.Itoa(count))
+	} else {
+		cmd = exec.CommandContext(ctx, "go", "run", "./cmd/collect", "--count", strconv.Itoa(count))
+	}
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Printf("[harvest] error: %v, out: %s", err, string(out))
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
+			"success": false,
+			"error":   fmt.Sprintf("thu hoạch token thất bại: %v", err),
+			"output":  string(out),
+		})
+		return
+	}
+
+	if err := s.tokens.Reload(); err != nil {
+		log.Printf("[harvest] reload pool error: %v", err)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"success":     true,
+		"pool_tokens": s.tokens.Count(),
+		"message":     fmt.Sprintf("Nạp thành công! Hiện có %d token sẵn sàng.", s.tokens.Count()),
+	})
 }
 
 func init() { log.SetFlags(log.LstdFlags) }
