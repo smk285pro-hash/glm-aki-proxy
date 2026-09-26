@@ -61,6 +61,13 @@ func Throttle(ctx context.Context) error {
 	return nil
 }
 
+// RecordRequestDone records completion time of an upstream request.
+func RecordRequestDone() {
+	stateMu.Lock()
+	defer stateMu.Unlock()
+	lastRequestAt = time.Now()
+}
+
 // ResetThrottle resets the throttle timestamp (used in unit tests).
 func ResetThrottle() {
 	stateMu.Lock()

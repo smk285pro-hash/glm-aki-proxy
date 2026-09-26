@@ -395,10 +395,8 @@ func (p *Pool) ReportError(s *Session, err error) {
 		s.mu.Unlock()
 		log.Printf("[session] account %s entered capacity cooldown (45s)", uid)
 	} else if strings.Contains(msg, "waf block") || strings.Contains(msg, "405") {
-		s.mu.Lock()
-		s.cooldownUntil = time.Now().Add(30 * time.Second)
-		s.mu.Unlock()
-		log.Printf("[session] account %s entered WAF block cooldown (30s)", uid)
+		// Do not set 30s cooldown: let pool rotate cyclically across accounts
+		log.Printf("[session] account %s encountered WAF 405, cycling to next account without 30s cooldown", uid)
 	} else if strings.Contains(msg, "401") || strings.Contains(msg, "token expired") {
 		s.mu.Lock()
 		s.ready = false

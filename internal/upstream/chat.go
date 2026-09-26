@@ -385,9 +385,8 @@ func Chat(ctx context.Context, pool *session.Pool, take captcha.TokenTaker,
 					maxAttempts = attempt + 2
 				}
 			}
-			backoff := time.Duration(attempt+1) * 1500 * time.Millisecond
-			log.Printf("[upstream] account %s hit WAF block (%v), waiting %v before retry on model %s...", sess.Name(), err, backoff, model)
-			pool.Refresh()
+			backoff := time.Duration(attempt+1) * 800 * time.Millisecond
+			log.Printf("[upstream] account %s hit WAF block (%v), cycling to next account (backoff %v, model %s)...", sess.Name(), err, backoff, model)
 			select {
 			case <-ctx.Done():
 				return "", "", ctx.Err()
@@ -509,6 +508,7 @@ func roundTrip(ctx context.Context, sess *session.Session, model string,
 		return "", "", true, fmt.Errorf("upstream: connection error: %w", err)
 	}
 	defer resp.Body.Close()
+	defer RecordRequestDone()
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		return "", "", true, ErrUnauthorized
