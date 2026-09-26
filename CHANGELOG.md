@@ -18,3 +18,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Universal PowerShell 1-line installation script (`install.ps1`) configuring isolated `clglm` command for Claude Code CLI.
 - Web Chat interface embedded into the binary at `http://127.0.0.1:5084/`.
 - Trailing slash URL normalization in HTTP router to ensure seamless compatibility with Claude Desktop App.
+- Intelligent WAF 405 auto-fallback to GLM-5.2 / GLM-5-Turbo with extended retries to prevent subagent loop failures.
+- Increased default request pacing gap to 2000ms for robust resistance against Aliyun ESA WAF rate limits.

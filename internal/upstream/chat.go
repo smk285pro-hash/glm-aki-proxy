@@ -33,6 +33,9 @@ const DefaultModel = "glm-4.7"
 // FallbackModel is used when accounts are exhausted/in cooldown on the requested model.
 const FallbackModel = "glm-5.2"
 
+// FastFallbackModel is used when FallbackModel also encounters WAF restrictions.
+const FastFallbackModel = "GLM-5-Turbo"
+
 var solveCaptcha = captcha.Solve
 
 // KnownModels advertises what this bridge will forward.
@@ -211,7 +214,7 @@ func Chat(ctx context.Context, pool *session.Pool, take captcha.TokenTaker,
 
 	// If all accounts are in cooldown, check if we can auto-fallback to FallbackModel
 	if pool.TotalCount() > 0 && pool.HealthyCount() == 0 {
-		if pool.ReadyCount() > 0 && !strings.EqualFold(model, FallbackModel) {
+		if (pool.ReadyCount() > 0 || pool.TotalCount() == 0) && !strings.EqualFold(model, FallbackModel) {
 			log.Printf("[upstream] all %d account(s) in cooldown on model %s, auto-falling back to %s", pool.TotalCount(), model, FallbackModel)
 			model = FallbackModel
 			pool.ResetCapacityCooldown()
@@ -234,7 +237,7 @@ func Chat(ctx context.Context, pool *session.Pool, take captcha.TokenTaker,
 
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		if pool.TotalCount() > 0 && pool.HealthyCount() == 0 {
-			if !fallbackDone && !strings.EqualFold(model, FallbackModel) && pool.ReadyCount() > 0 {
+			if !fallbackDone && !strings.EqualFold(model, FallbackModel) && (pool.ReadyCount() > 0 || pool.TotalCount() == 0) {
 				fallbackDone = true
 				log.Printf("[upstream] all accounts in cooldown for model %s, auto-falling back to %s", model, FallbackModel)
 				model = FallbackModel
@@ -340,7 +343,7 @@ func Chat(ctx context.Context, pool *session.Pool, take captcha.TokenTaker,
 
 		// Check if we have completed a full round over accounts or all accounts entered cooldown
 		completedRound := attemptsForModel >= pool.TotalCount() || (pool.TotalCount() > 0 && pool.HealthyCount() == 0)
-		if completedRound && !fallbackDone && !strings.EqualFold(model, FallbackModel) && pool.ReadyCount() > 0 {
+		if completedRound && !fallbackDone && !strings.EqualFold(model, FallbackModel) && (pool.ReadyCount() > 0 || pool.TotalCount() == 0) {
 			fallbackDone = true
 			log.Printf("[upstream] rotated all %d account(s) on model %s without success, auto-falling back to %s", pool.TotalCount(), model, FallbackModel)
 			model = FallbackModel
@@ -363,18 +366,38 @@ func Chat(ctx context.Context, pool *session.Pool, take captcha.TokenTaker,
 			return "", "", err
 		}
 
-		if attempt < maxAttempts-1 {
-			isWaf := errors.Is(err, ErrWAFBlock) || strings.Contains(strings.ToLower(err.Error()), "waf block") || strings.Contains(err.Error(), "405")
-			if isWaf {
-				backoff := time.Duration(attempt+1) * 2000 * time.Millisecond
-				log.Printf("[upstream] account %s hit WAF block (%v), waiting %v before retry...", sess.Name(), err, backoff)
-				pool.Refresh()
-				select {
-				case <-ctx.Done():
-					return "", "", ctx.Err()
-				case <-time.After(backoff):
+		isWaf := errors.Is(err, ErrWAFBlock) || strings.Contains(strings.ToLower(err.Error()), "waf block") || strings.Contains(err.Error(), "405")
+		if isWaf {
+			// Auto-fallback chain when WAF blocks expensive model during agentic loops
+			if !fallbackDone && !strings.EqualFold(model, FallbackModel) {
+				fallbackDone = true
+				log.Printf("[upstream] model %s hit WAF block (%v), auto-falling back to %s for agent loop recovery", model, err, FallbackModel)
+				model = FallbackModel
+				attemptsForModel = 0
+				if attempt >= maxAttempts-1 {
+					maxAttempts = attempt + 2
 				}
-			} else if pool.HasAlternative(sess) {
+			} else if strings.EqualFold(model, FallbackModel) && !strings.EqualFold(model, FastFallbackModel) {
+				log.Printf("[upstream] model %s also hit WAF block (%v), auto-falling back to fast tier %s", model, err, FastFallbackModel)
+				model = FastFallbackModel
+				attemptsForModel = 0
+				if attempt >= maxAttempts-1 {
+					maxAttempts = attempt + 2
+				}
+			}
+			backoff := time.Duration(attempt+1) * 1500 * time.Millisecond
+			log.Printf("[upstream] account %s hit WAF block (%v), waiting %v before retry on model %s...", sess.Name(), err, backoff, model)
+			pool.Refresh()
+			select {
+			case <-ctx.Done():
+				return "", "", ctx.Err()
+			case <-time.After(backoff):
+			}
+			continue
+		}
+
+		if attempt < maxAttempts-1 {
+			if pool.HasAlternative(sess) {
 				log.Printf("[upstream] account %s hit transient error (%v), switching to alternative account", sess.Name(), err)
 			} else {
 				select {
@@ -383,6 +406,7 @@ func Chat(ctx context.Context, pool *session.Pool, take captcha.TokenTaker,
 				case <-time.After(time.Duration(attempt+1) * 1200 * time.Millisecond):
 				}
 			}
+			continue
 		}
 	}
 	if lastErr == nil {
