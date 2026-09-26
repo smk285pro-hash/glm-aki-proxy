@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Z.AI Token Grabber</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body {
+      width: 340px;
+      padding: 16px;
+      background: #0f1117;
+      color: #e2e8f0;
+      font-size: 13px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #1e293b;
+    }
+    .badge {
+      background: #3b82f6;
+      color: white;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .title { font-weight: 600; font-size: 14px; color: #f8fafc; }
+    .card {
+      background: #182032;
+      border: 1px solid #23314d;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .label { color: #94a3b8; font-size: 11px; }
+    .value { font-weight: 600; color: #38bdf8; font-size: 11px; word-break: break-all; }
+    .token-box {
+      background: #0b0e14;
+      border: 1px solid #1e293b;
+      border-radius: 6px;
+      padding: 8px;
+      font-family: monospace;
+      font-size: 10px;
+      color: #cbd5e1;
+      max-height: 70px;
+      overflow-y: auto;
+      word-break: break-all;
+      margin-top: 8px;
+      line-height: 1.4;
+      user-select: all;
+    }
+    .btn {
+      width: 100%;
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 9px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: #1d4ed8; }
+    .btn:active { transform: scale(0.98); }
+    .btn-success { background: #10b981 !important; }
+    .btn-secondary {
+      background: #1e293b;
+      color: #94a3b8;
+      border: 1px solid #334155;
+      margin-top: 8px;
+    }
+    .btn-secondary:hover { background: #334155; color: #f1f5f9; }
+    .alert {
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      margin-bottom: 10px;
+      display: none;
+    }
+    .alert-error { background: #451a1a; border: 1px solid #7f1d1d; color: #fca5a5; }
+    .footer {
+      margin-top: 10px;
+      text-align: center;
+      font-size: 10px;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="badge">Aki</span>
+    <span class="title">Z.AI Token Grabber</span>
+  </div>
+
+  <div id="errorAlert" class="alert alert-error"></div>
+
+  <div id="tokenCard" class="card" style="display: none;">
+    <div class="row">
+      <span class="label">Email:</span>
+      <span id="accEmail" class="value">-</span>
+    </div>
+    <div class="row">
+      <span class="label">User ID:</span>
+      <span id="accID" class="value">-</span>
+    </div>
+    <div class="label" style="margin-top: 8px;">Token JWT:</div>
+    <div id="tokenPreview" class="token-box"></div>
+  </div>
+
+  <button id="copyBtn" class="btn" style="display: none;">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+    Copy Token vào Clipboard
+  </button>
+
+  <button id="openZaiBtn" class="btn btn-secondary" style="display: none;">
+    Mở chat.z.ai để đăng nhập
+  </button>
+
+  <div class="footer">Dùng để thêm tài khoản vào GLM-Aki-Proxy</div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

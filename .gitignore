@@ -1,0 +1,24 @@
+# build output
+*.exe
+*.out
+/bin/
+
+# local config & data (tokens are single-use secrets)
+.env
+.env.local
+tokens.json
+*.sqlite
+*.log
+
+# editor
+.vscode/
+.idea/
+
+# vercel
+.vercel/
+.vercel
+.env*
+
+# scratch & temporary
+.agents/
+*.png

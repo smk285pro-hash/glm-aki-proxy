@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Z.AI Token Grabber — Aki Proxy",
+  "version": "1.0.0",
+  "description": "1-Click extract JWT authentication token from chat.z.ai for GLM Aki Proxy",
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://chat.z.ai/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Get Z.AI Token"
+  }
+}

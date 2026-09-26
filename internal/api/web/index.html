@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>glm-aki-proxy · chat</title>
+<style>
+  :root { --bg:#0f1115; --panel:#171a21; --line:#262b36; --txt:#e6e9ef; --mut:#9aa3b2; --acc:#4da3ff; --err:#ff6b6b; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:15px/1.55 system-ui,sans-serif; }
+  header { position:sticky; top:0; background:var(--panel); border-bottom:1px solid var(--line); padding:10px 16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; z-index:5; }
+  header h1 { font-size:16px; margin:0 8px 0 0; }
+  #status { font-size:13px; color:var(--mut); }
+  #status b { color:var(--txt); }
+  .pill { border:1px solid var(--line); border-radius:20px; padding:2px 10px; font-size:12px; }
+  .pill.ok { color:#7dffa8; border-color:#2c5b3f; }
+  .pill.bad { color:var(--err); border-color:#5b2c2c; }
+  main { max-width:860px; margin:0 auto; padding:16px 16px 150px; }
+  .msg { margin:12px 0; padding:10px 14px; border-radius:10px; max-width:100%; overflow-wrap:break-word; }
+  .msg.user { background:#1e2c44; margin-left:12%; }
+  .msg.assistant { background:var(--panel); border:1px solid var(--line); }
+  .msg.error { background:#2a1a1a; border:1px solid #5b2c2c; color:var(--err); }
+  .msg .who { font-size:12px; color:var(--mut); margin-bottom:4px; }
+  .msg pre { background:#0b0d11; border:1px solid var(--line); border-radius:8px; padding:10px; overflow-x:auto; }
+  .msg code { background:#0b0d11; padding:1px 5px; border-radius:5px; font-size:13px; }
+  .msg pre code { background:none; padding:0; }
+  details.reason { border:1px dashed var(--line); border-radius:8px; padding:6px 10px; margin-bottom:8px; font-size:13px; color:var(--mut); }
+  details.reason summary { cursor:pointer; }
+  #composer { position:fixed; left:0; right:0; bottom:0; background:var(--panel); border-top:1px solid var(--line); padding:10px 16px; }
+  #composer .row { max-width:860px; margin:0 auto; display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }
+  #composer textarea { flex:1; min-width:200px; background:#0b0d11; color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:9px 12px; font:inherit; resize:vertical; min-height:44px; }
+  #composer select, #composer input[type=password], #composer input[type=text] { background:#0b0d11; color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font:inherit; }
+  button { background:var(--acc); color:#04121f; border:0; border-radius:8px; padding:9px 16px; font:inherit; font-weight:600; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--txt); border:1px solid var(--line); font-weight:400; }
+  button:disabled { opacity:.5; cursor:wait; }
+  label.chk { font-size:13px; color:var(--mut); display:flex; gap:5px; align-items:center; }
+  #tools { max-width:860px; margin:0 auto 8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:13px; color:var(--mut); }
+</style>
+</head>
+<body>
+<header>
+  <h1>glm-aki-proxy</h1>
+  <span id="conn" class="pill">…</span>
+  <span id="status">đang tải…</span>
+</header>
+<main id="chat"></main>
+<div id="composer">
+  <div id="tools">
+    <select id="model" title="model"></select>
+    <input id="key" type="password" size="16" title="API key (AUTH_TOKEN)" placeholder="api key">
+    <button id="newchat" class="ghost" title="Hội thoại mới">+ New</button>
+    <label class="chk"><input id="stream" type="checkbox" checked> stream</label>
+    <button id="stop" class="ghost" disabled>Stop</button>
+  </div>
+  <div class="row">
+    <textarea id="input" rows="2" placeholder="Nhắn gì đó… (Enter gửi, Shift+Enter xuống dòng)"></textarea>
+    <button id="send">Gửi</button>
+  </div>
+</div>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var chat = $("chat"), input = $("input"), sendBtn = $("send"), stopBtn = $("stop");
+
+  var state = {
+    key: localStorage.getItem("aki-key") || "aki-local-key",
+    model: localStorage.getItem("aki-model") || "glm-4.7",
+    session: "web-" + Math.random().toString(36).slice(2),
+    abort: null,
+  };
+  $("key").value = state.key;
+
+  function esc(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  // markdown rất nhẹ: code fence, inline code, bold, giữ xuống dòng
+  function md(src) {
+    var parts = esc(src).split(/```/);
+    for (var i = 1; i < parts.length; i += 2) {
+      parts[i] = "<pre><code>" + parts[i].replace(/^\w+\n/, "") + "</code></pre>";
+    }
+    var out = "";
+    for (var j = 0; j < parts.length; j++) {
+      if (j % 2 === 1) { out += parts[j]; continue; }
+      var t = parts[j]
+        .replace(/`([^`\n]+)`/g, "<code>$1</code>")
+        .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+      out += t.replace(/\n/g, "<br>");
+    }
+    return out;
+  }
+
+  function bubble(who, cls) {
+    var d = document.createElement("div");
+    d.className = "msg " + cls;
+    d.innerHTML = '<div class="who">' + who + "</div>";
+    var body = document.createElement("div");
+    d.appendChild(body);
+    chat.appendChild(d);
+    window.scrollTo(0, document.body.scrollHeight);
+    return body;
+  }
+
+  function refreshStatus() {
+    fetch("/status").then(function (r) { return r.json(); }).then(function (s) {
+      var c = $("conn");
+      c.textContent = s.connected ? "● connected" : "● down";
+      c.className = "pill " + (s.connected ? "ok" : "bad");
+      $("status").innerHTML = "user <b>" + esc(s.user || "?") + "</b> · pool <b>" +
+        s.pool_tokens + "</b> token" + (s.pool_tokens <= 5 ? " ⚠️ sắp hết" : "");
+    }).catch(function () {
+      var c = $("conn");
+      c.textContent = "● unreachable"; c.className = "pill bad";
+    });
+  }
+
+  function loadModels() {
+    var sel = $("model");
+    function fill(list) {
+      sel.innerHTML = "";
+      list.forEach(function (m) {
+        var o = document.createElement("option");
+        o.value = m; o.textContent = m;
+        if (m === state.model) o.selected = true;
+        sel.appendChild(o);
+      });
+      if (!list.includes(state.model)) {
+        var o = document.createElement("option");
+        o.value = state.model; o.textContent = state.model + " (đã lưu)";
+        o.selected = true; sel.appendChild(o);
+      }
+    }
+    fetch("/v1/models", { headers: auth() }).then(function (r) { return r.json(); })
+      .then(function (j) { fill((j.data || []).map(function (m) { return m.id; })); })
+      .catch(function () { fill(["glm-4.7", "glm-5.2", "glm-5.3", "GLM-5-Turbo", "GLM-5v-Turbo", "x-preview-l"]); });
+  }
+
+  function auth() { return { "Authorization": "Bearer " + $("key").value.trim() }; }
+
+  function setBusy(b) { sendBtn.disabled = b; stopBtn.disabled = !b; input.disabled = b; }
+
+  function newChat() {
+    state.session = "web-" + Math.random().toString(36).slice(2);
+    chat.innerHTML = "";
+    var b = bubble("hệ thống", "assistant");
+    b.innerHTML = "Hội thoại mới. Lịch sử phía server bắt đầu lại từ đây.";
+  }
+
+  function send() {
+    var text = input.value.trim();
+    if (!text || state.abort) return;
+    localStorage.setItem("aki-key", $("key").value.trim());
+    localStorage.setItem("aki-model", $("model").value);
+    var ub = bubble("bạn", "user");
+    ub.innerHTML = md(text);
+    input.value = "";
+
+    var ab = bubble($("model").value, "assistant");
+    var reasonBox = null, reasonTxt = "", bodyTxt = "";
+    function render() {
+      var h = "";
+      if (reasonTxt) {
+        h += "<details class='reason'" + (state.abort ? " open" : "") +
+             "><summary>thinking</summary>" + md(reasonTxt) + "</details>";
+      }
+      ab.innerHTML = h + md(bodyTxt || "…");
+      window.scrollTo(0, document.body.scrollHeight);
+    }
+    render();
+
+    var ctrl = new AbortController();
+    state.abort = ctrl;
+    setBusy(true);
+
+    var payload = {
+      model: $("model").value,
+      stream: $("stream").checked,
+      messages: [{ role: "user", content: text }],
+    };
+    fetch("/v1/chat/completions", {
+      method: "POST",
+      signal: ctrl.signal,
+      headers: Object.assign({ "Content-Type": "application/json", "X-Session-Id": state.session }, auth()),
+      body: JSON.stringify(payload),
+    }).then(function (resp) {
+      if (!resp.ok) {
+        return resp.json().then(function (j) { throw new Error((j.error && j.error.message) || ("HTTP " + resp.status)); });
+      }
+      if (!payload.stream) return resp.json().then(function (j) {
+        var m = ((j.choices || [])[0] || {}).message || {};
+        reasonTxt = m.reasoning_content || "";
+        bodyTxt = m.content || "(rỗng)";
+      });
+      var reader = resp.body.getReader();
+      var dec = new TextDecoder();
+      var buf = "";
+      function pump() {
+        return reader.read().then(function (r) {
+          if (r.done) return;
+          buf += dec.decode(r.value, { stream: true });
+          var parts = buf.split("\n\n");
+          buf = parts.pop();
+          parts.forEach(function (p) {
+            var line = p.trim();
+            if (line.indexOf("data: ") !== 0) return;
+            var data = line.slice(6);
+            if (data === "[DONE]") return;
+            try {
+              var d = (((JSON.parse(data).choices || [])[0] || {}).delta) || {};
+              if (d.reasoning_content) reasonTxt += d.reasoning_content;
+              if (d.content) bodyTxt += d.content;
+              render();
+            } catch (e) { /* chunk méo, bỏ qua */ }
+          });
+          return pump();
+        });
+      }
+      return pump();
+    }).then(function () {
+      state.abort = null; setBusy(false); render(); refreshStatus();
+    }).catch(function (e) {
+      state.abort = null; setBusy(false);
+      if (e.name === "AbortError") { bodyTxt += "\n— đã dừng —"; render(); return; }
+      var eb = bubble("lỗi", "error");
+      eb.textContent = e.message;
+      refreshStatus();
+    });
+  }
+
+  sendBtn.onclick = send;
+  stopBtn.onclick = function () { if (state.abort) state.abort.abort(); };
+  $("newchat").onclick = newChat;
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+
+  refreshStatus();
+  loadModels();
+  setInterval(refreshStatus, 30000);
+})();
+</script>
+</body>
+</html>

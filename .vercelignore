@@ -1,0 +1,10 @@
+*.exe
+*.exe~
+*.log
+tokens.json
+cmd/collect
+.env
+.env.*
+.git
+.agents
+*.png
