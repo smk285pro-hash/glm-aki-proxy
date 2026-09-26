@@ -133,6 +133,10 @@ type accessLog struct{ mux http.Handler }
 
 func (a *accessLog) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	// Clean double slashes e.g. //v1/messages -> /v1/messages
+	for strings.Contains(r.URL.Path, "//") {
+		r.URL.Path = strings.ReplaceAll(r.URL.Path, "//", "/")
+	}
 	// Normalize duplicated subpaths caused by client baseURL misconfigurations
 	path := r.URL.Path
 	if strings.HasSuffix(path, "/v1/messages/v1/messages") || strings.HasSuffix(path, "/messages/messages") {
