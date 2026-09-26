@@ -363,6 +363,9 @@ func Chat(ctx context.Context, pool *session.Pool, take captcha.TokenTaker,
 			if attempt == 0 {
 				log.Printf("[upstream] WAF block on attempt 0, refreshing anti-bot cookies via homepage scrape")
 				pool.Refresh()
+			} else if routeProxy == nil && DefaultWarpRotator.Enabled() {
+				// Option C: Auto-rotate Cloudflare WARP IP on repeated WAF blocks
+				DefaultWarpRotator.RotateIP(ctx, pool)
 			}
 			// Auto-fallback chain when WAF blocks expensive model during agentic loops
 			if !fallbackDone && !strings.EqualFold(model, FallbackModel) {
