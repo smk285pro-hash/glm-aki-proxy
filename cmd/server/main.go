@@ -14,10 +14,12 @@ import (
 	"glm-aki-proxy/internal/config"
 	"glm-aki-proxy/internal/pool"
 	"glm-aki-proxy/internal/session"
+	"glm-aki-proxy/internal/upstream"
 )
 
 func main() {
 	cfg := config.Load()
+	_ = upstream.DefaultProxyPool.LoadFromEnv()
 
 	tokens, err := pool.Open(cfg)
 	if err != nil {

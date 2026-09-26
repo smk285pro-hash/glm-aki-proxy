@@ -15,8 +15,8 @@ var (
 	lastRequestAt time.Time
 )
 
-// DefaultMinGap is the default pacing interval between upstream requests (2000ms).
-const DefaultMinGap = 2000 * time.Millisecond
+// DefaultMinGap is the default pacing interval between upstream requests (2800ms).
+const DefaultMinGap = 2800 * time.Millisecond
 
 // GetMinGap returns the pacing duration configured via ANTHROPIC_ZAI_MIN_MS.
 func GetMinGap() time.Duration {

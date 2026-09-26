@@ -384,11 +384,14 @@ func Chat(ctx context.Context, pool *session.Pool, take captcha.TokenTaker,
 					maxAttempts = attempt + 2
 				}
 			}
-			backoff := time.Duration(attempt+1) * 1000 * time.Millisecond
-			if backoff > 3*time.Second {
-				backoff = 3 * time.Second
+			backoff := time.Duration(attempt+1) * 1500 * time.Millisecond
+			if attempt >= 2 {
+				backoff = time.Duration(attempt*5) * time.Second
 			}
-			log.Printf("[upstream] account %s hit WAF block (%v), cycling to next account (backoff %v, model %s)...", sess.Name(), err, backoff, model)
+			if backoff > 20*time.Second {
+				backoff = 20 * time.Second
+			}
+			log.Printf("[upstream] account %s hit WAF block (%v), cycling to next route (backoff %v, model %s)...", sess.Name(), err, backoff, model)
 			select {
 			case <-ctx.Done():
 				return "", "", ctx.Err()
