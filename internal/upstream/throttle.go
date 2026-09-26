@@ -2,6 +2,7 @@ package upstream
 
 import (
 	"context"
+	"math/rand/v2"
 	"os"
 	"strconv"
 	"sync"
@@ -38,12 +39,14 @@ func Throttle(ctx context.Context) error {
 	defer func() { <-throttleSem }()
 
 	gap := GetMinGap()
+	// Add 100-400ms random jitter to break machine-like periodicity for anti-WAF bot detection
+	jitter := time.Duration(100+rand.IntN(300)) * time.Millisecond
 
 	stateMu.Lock()
 	prev := lastRequestAt
 	stateMu.Unlock()
 
-	wait := gap - time.Since(prev)
+	wait := (gap + jitter) - time.Since(prev)
 	if wait > 0 {
 		timer := time.NewTimer(wait)
 		defer timer.Stop()

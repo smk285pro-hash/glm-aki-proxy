@@ -389,14 +389,9 @@ func (p *Pool) ReportError(s *Session, err error) {
 	}
 	msg := strings.ToLower(err.Error())
 	uid := s.ShortUID()
-	if strings.Contains(msg, "capacity") || strings.Contains(msg, "busy") || strings.Contains(msg, "rate limit") || strings.Contains(msg, "too many requests") || strings.Contains(msg, "429") {
-		s.mu.Lock()
-		s.cooldownUntil = time.Now().Add(45 * time.Second)
-		s.mu.Unlock()
-		log.Printf("[session] account %s entered capacity cooldown (45s)", uid)
-	} else if strings.Contains(msg, "waf block") || strings.Contains(msg, "405") {
-		// Do not set 30s cooldown: let pool rotate cyclically across accounts
-		log.Printf("[session] account %s encountered WAF 405, cycling to next account without 30s cooldown", uid)
+	if strings.Contains(msg, "waf block") || strings.Contains(msg, "405") {
+		// Do not set cooldown: let pool rotate cyclically across accounts
+		log.Printf("[session] account %s encountered WAF 405, cycling to next account without cooldown", uid)
 	} else if strings.Contains(msg, "401") || strings.Contains(msg, "token expired") {
 		s.mu.Lock()
 		s.ready = false
@@ -409,6 +404,11 @@ func (p *Pool) ReportError(s *Session, err error) {
 		s.cooldownUntil = time.Now().Add(24 * time.Hour)
 		s.mu.Unlock()
 		log.Printf("[session] account %s BLOCKED by upstream (USER_BLOCKED), disabled for 24h", uid)
+	} else if strings.Contains(msg, "capacity") || strings.Contains(msg, "busy") || strings.Contains(msg, "rate limit") || strings.Contains(msg, "too many requests") || strings.Contains(msg, "429") {
+		s.mu.Lock()
+		s.cooldownUntil = time.Now().Add(15 * time.Second)
+		s.mu.Unlock()
+		log.Printf("[session] account %s entered capacity cooldown (15s)", uid)
 	}
 }
 
