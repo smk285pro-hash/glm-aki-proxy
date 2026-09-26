@@ -526,7 +526,7 @@ func roundTrip(ctx context.Context, sess *session.Session, model string,
 		eb, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 		es := strings.TrimSpace(string(eb))
 		log.Printf("[upstream] 405 MethodNotAllowed from chat.z.ai: headers=%v body=%.250s", resp.Header, es)
-		return "", "", true, fmt.Errorf("%w: status 405: %s", ErrWAFBlock, es)
+		return "", "", true, fmt.Errorf("%w: status 405 (rate limit / security challenge)", ErrWAFBlock)
 	}
 	if resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests {
 		return "", "", true, fmt.Errorf("upstream: status %d (transient)", resp.StatusCode)
