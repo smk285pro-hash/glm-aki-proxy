@@ -118,7 +118,8 @@ func (p *Pool) Backend() string {
 }
 
 // MaxTokenAge defines how long a device token is considered valid before being auto-discarded.
-const MaxTokenAge = 3 * time.Hour
+// Aliyun Traceless Captcha sessions expire quickly; 45m avoids feeding stale tokens to WAF.
+const MaxTokenAge = 45 * time.Minute
 
 func tokenTimestamp(deviceToken string) (time.Time, bool) {
 	raw, err := base64.StdEncoding.DecodeString(deviceToken)
