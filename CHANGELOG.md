@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-09-27
+
+### Added
+- Automatic Cloudflare WARP IP rotation trigger on repeated WAF 405 blocks (`internal/upstream/warp.go`).
+- Multi-proxy rotation pool with Direct-First policy and dead proxy isolation (`proxy.txt` and `USE_PROXY`).
+- Dynamic token harvest quantity input prompt on the Web Chat UI supporting up to 2000 tokens per batch.
+
+### Changed
+- Increased default request pacing interval (`DefaultMinGap`) to 2800ms with random jitter to stay safely under Aliyun ESA WAF rate limits.
+- Implemented progressive exponential backoff (up to 20s) on repeated WAF 405 blocks to allow Alibaba Cloud sliding penalty windows to clear.
+
+### Fixed
+- Eliminated 30s/45s account cooldown lock on WAF 405 error, enabling smooth cyclic rotation across all sessions without premature 529 aborts.
+- Aligned Chrome 146 HTTP headers (`sec-ch-ua`, `origin`, `referer`, `accept`) and unescaped JSON encoding to prevent security challenges.
+- Handled `USER_BLOCKED` via `errors.Is` comparison and improved proxy pool initialization on server startup.
+
 ## [1.0.0] - 2026-09-27
 
 ### Added

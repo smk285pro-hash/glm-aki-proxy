@@ -8,6 +8,8 @@
 .env
 .env.local
 tokens.json
+proxy.txt
+fresh_tokens.json
 *.sqlite
 *.log
 
