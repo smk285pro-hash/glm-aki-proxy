@@ -493,19 +493,9 @@ func roundTrip(ctx context.Context, sess *session.Session, model string,
 	}
 	req.Header = make(fhttp.Header)
 	req.Header.Set("authorization", "Bearer "+token)
-	req.Header.Set("user-agent", ChromeUA)
+	req.Header.Set("User-Agent", ChromeUA)
 	req.Header.Set("content-type", "application/json")
-	req.Header.Set("accept", "text/event-stream, application/json, */*")
-	req.Header.Set("accept-language", "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7")
-	req.Header.Set("origin", session.BaseURL)
-	req.Header.Set("referer", session.BaseURL+"/")
-	req.Header.Set("sec-ch-ua", `"Chromium";v="146", "Not A(Brand";v="24", "Google Chrome";v="146"`)
-	req.Header.Set("sec-ch-ua-mobile", "?0")
-	req.Header.Set("sec-ch-ua-platform", `"Windows"`)
-	req.Header.Set("sec-fetch-dest", "empty")
-	req.Header.Set("sec-fetch-mode", "cors")
-	req.Header.Set("sec-fetch-site", "same-origin")
-	req.Header.Set("x-fe-version", fe)
+	req.Header.Set("x-fe-Version", fe)
 	req.Header.Set("x-region", "overseas")
 	req.Header.Set("x-signature", sig)
 
@@ -533,7 +523,10 @@ func roundTrip(ctx context.Context, sess *session.Session, model string,
 		return "", "", true, fmt.Errorf("%w: status 403: %s", ErrWAFBlock, es)
 	}
 	if resp.StatusCode == http.StatusMethodNotAllowed {
-		return "", "", true, fmt.Errorf("%w: status 405", ErrWAFBlock)
+		eb, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		es := strings.TrimSpace(string(eb))
+		log.Printf("[upstream] 405 MethodNotAllowed from chat.z.ai: headers=%v body=%.250s", resp.Header, es)
+		return "", "", true, fmt.Errorf("%w: status 405: %s", ErrWAFBlock, es)
 	}
 	if resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests {
 		return "", "", true, fmt.Errorf("upstream: status %d (transient)", resp.StatusCode)

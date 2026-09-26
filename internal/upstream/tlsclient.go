@@ -39,8 +39,6 @@ func NewBrowserClient(proxy string, timeoutSecs int) (HTTPDoer, error) {
 	opts := []tls_client.HttpClientOption{
 		tls_client.WithClientProfile(profiles.Chrome_146),
 		tls_client.WithTimeoutSeconds(timeoutSecs),
-		tls_client.WithRandomTLSExtensionOrder(),
-		tls_client.WithNotFollowRedirects(),
 	}
 	if proxy != "" {
 		opts = append(opts, tls_client.WithProxyUrl(proxy))
