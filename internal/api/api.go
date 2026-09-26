@@ -623,7 +623,7 @@ func (s *Server) handleHarvest(w http.ResponseWriter, r *http.Request) {
 
 	count := 50
 	if q := r.URL.Query().Get("count"); q != "" {
-		if n, err := strconv.Atoi(q); err == nil && n > 0 && n <= 500 {
+		if n, err := strconv.Atoi(q); err == nil && n > 0 && n <= 2000 {
 			count = n
 		}
 	}
