@@ -1,5 +1,7 @@
 @echo off
+setlocal enabledelayedexpansion
 chcp 65001 >nul
+cd /d "%~dp0"
 title GLM-Aki-Proxy
 
 echo ========================================================
@@ -19,7 +21,7 @@ if %ERRORLEVEL% neq 0 (
 
 :: 2. Build binaries if missing
 if not exist "glm-aki-proxy.exe" (
-    echo [BUILD] Building glm-aki-proxy.exe...
+    echo [BUILD] Building glm-aki-proxy.exe ...
     go build -o glm-aki-proxy.exe ./cmd/server
     if %ERRORLEVEL% neq 0 (
         echo [ERROR] Failed to build glm-aki-proxy.exe!
@@ -30,7 +32,7 @@ if not exist "glm-aki-proxy.exe" (
 )
 
 if not exist "aki-collect.exe" (
-    echo [BUILD] Building aki-collect.exe...
+    echo [BUILD] Building aki-collect.exe ...
     go build -o aki-collect.exe ./cmd/collect
     if %ERRORLEVEL% neq 0 (
         echo [WARN] Failed to build aki-collect.exe, will fallback to go run.
@@ -39,15 +41,9 @@ if not exist "aki-collect.exe" (
     )
 )
 
-:: 3. Check Playwright driver on first run
-if not exist "%USERPROFILE%\AppData\Local\ms-playwright-go" (
-    echo [INIT] Installing headless browser driver (Playwright)...
-    go run github.com/mxschmitt/playwright-go/cmd/playwright install --with-deps chromium
-)
-
-:: 4. Check tokens.json
+:: 3. Check tokens.json
 if not exist "tokens.json" (
-    echo [NOTICE] tokens.json not found. Harvesting initial 50 tokens...
+    echo [NOTICE] tokens.json not found. Harvesting initial 50 tokens ...
     if exist "aki-collect.exe" (
         .\aki-collect.exe --count 50
     ) else (
@@ -55,10 +51,13 @@ if not exist "tokens.json" (
     )
 )
 
-:: 5. Open Web UI in browser & start server
+:: 4. Open Web UI in browser and start server
 echo.
 echo [START] Starting GLM Proxy at http://127.0.0.1:5084 ...
 start "" http://127.0.0.1:5084
 
 .\glm-aki-proxy.exe
-pause
+if %ERRORLEVEL% neq 0 (
+    echo [ERROR] Proxy server exited with error code %ERRORLEVEL%
+    pause
+)
